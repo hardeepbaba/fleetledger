@@ -230,6 +230,7 @@
 
   <!-- DRIVER PAY -->
   <section id="tab-pay" class="hidden">
+    <div style="margin-bottom:14px;"><button class="btn btn-primary" style="width:100%" onclick="downloadDriverReport(null)">⬇ Download Full Report (CSV)</button></div>
     <section class="block">
       <div class="block-head"><h2>Driver Pay Totals</h2><span class="count" id="payDriverCount">0</span></div>
       <div id="driverPayList"></div>
@@ -388,7 +389,7 @@ function loadItem(l){
   return `<div class="item">
     <div>
       <div class="i-title mono">Load #${escapeHtml(l.loadNumber)}</div>
-      <div class="i-sub">${escapeHtml(driverName(l.driverId))} · ${escapeHtml(truckName(l.truckId))} · ${fmtDate(l.date)}</div>
+      <div class="i-sub">${escapeHtml(driverName(l.driverId))} · ${escapeHtml(truckName(l.truckId))} · ${fmtDate(l.date)}${l.waitTime?(' · <span class="acc">'+l.waitTime+'h wait</span>'):''}</div>
     </div>
     <div style="text-align:right">
       <div class="i-val">${money(l.revenue)}<small>Pay ${money(l.driverPay)}</small></div>
@@ -424,7 +425,7 @@ function renderLoads(){
     <div class="item">
       <div>
         <div class="i-title mono">Load #${escapeHtml(l.loadNumber)}</div>
-        <div class="i-sub">${escapeHtml(driverName(l.driverId))} · ${escapeHtml(truckName(l.truckId))} · ${fmtDate(l.date)}${l.notes?(' · '+escapeHtml(l.notes)):''}</div>
+        <div class="i-sub">${escapeHtml(driverName(l.driverId))} · ${escapeHtml(truckName(l.truckId))} · ${fmtDate(l.date)}${l.waitTime?(' · <span class="acc">'+l.waitTime+'h wait</span>'):''}${l.notes?(' · '+escapeHtml(l.notes)):''}</div>
       </div>
       <div style="text-align:right">
         <div class="i-val">${money(l.revenue)}<small>Revenue</small></div>
@@ -520,13 +521,67 @@ function renderDriverPay(){
     <div class="item">
       <div>
         <div class="i-title">${escapeHtml(r.name)}</div>
-        <div class="i-sub">${r.loadCount} load${r.loadCount===1?'':'s'} · ${money(r.revenue)} revenue generated</div>
+        <div class="i-sub">${r.loadCount} load${r.loadCount===1?'':'s'}</div>
       </div>
-      <div class="i-val acc">${money(r.pay)}<small>Total Pay</small></div>
+      <div style="text-align:right">
+        <div class="i-val acc">${money(r.pay)}<small>Total Pay</small></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="downloadDriverReport('${r.key}')">⬇ CSV</button>
+      </div>
     </div>`).join('') : '<div class="empty">No driver pay yet. Add loads with a driver and pay amount.</div>';
 }
 
 function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------------- DRIVER PAY REPORT (CSV) ---------------- */
+function csvField(v){
+  const s = String(v ?? '');
+  if(/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function buildDriverReportCSV(driverKey){
+  // driverKey: null = all drivers, '__unassigned__' = loads with no driver, or a specific driver id
+  let rows = [...DB.loads];
+  if(driverKey === '__unassigned__'){
+    rows = rows.filter(l => !l.driverId);
+  } else if(driverKey){
+    rows = rows.filter(l => l.driverId === driverKey);
+  }
+  rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+  const header = ['Load Number','Date','Driver','Truck','Driver Pay ($)','Wait Time (hrs)','Notes'];
+  const lines = [header.map(csvField).join(',')];
+
+  let totalPay = 0, totalWait = 0;
+  for(const l of rows){
+    totalPay += Number(l.driverPay||0);
+    totalWait += Number(l.waitTime||0);
+    lines.push([
+      l.loadNumber, fmtDate(l.date), driverName(l.driverId), truckName(l.truckId),
+      Number(l.driverPay||0).toFixed(2),
+      l.waitTime ? Number(l.waitTime).toFixed(2) : '0', l.notes||''
+    ].map(csvField).join(','));
+  }
+  lines.push('');
+  lines.push(['TOTALS','','','', totalPay.toFixed(2), totalWait.toFixed(2), ''].map(csvField).join(','));
+  return lines.join('\n');
+}
+function downloadCSV(filename, content){
+  const blob = new Blob([content], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function downloadDriverReport(driverKey){
+  let label = 'All-Drivers';
+  if(driverKey === '__unassigned__') label = 'Unassigned';
+  else if(driverKey) label = driverName(driverKey).replace(/[^a-z0-9]+/gi,'-');
+  const csv = buildDriverReportCSV(driverKey || null);
+  downloadCSV(`driver-pay-report-${label}-${todayStr()}.csv`, csv);
+}
 
 /* ---------------- CRUD ---------------- */
 async function removeItem(key, id){
@@ -634,11 +689,17 @@ const MODAL_FORMS = {
         <div class="field"><label>Revenue Earned ($)</label><input id="f_revenue" type="number" step="0.01" value="${rec?rec.revenue:''}" placeholder="0.00"></div>
         <div class="field"><label>Driver Pay ($)</label><input id="f_driverPay" type="number" step="0.01" value="${rec?rec.driverPay:''}" placeholder="0.00"></div>
       </div>
+      <div class="field"><label><input type="checkbox" id="f_hasWaitTime" style="width:auto;margin-right:6px;" ${rec&&rec.waitTime?'checked':''}>Driver had waiting time on this load</label></div>
+      <div id="waitTimeFields" class="${rec&&rec.waitTime?'':'hidden'}">
+        <div class="field"><label>Wait Time (hours)</label><input id="f_waitTime" type="number" step="0.25" min="0" value="${rec&&rec.waitTime?rec.waitTime:''}" placeholder="e.g. 1.5"></div>
+      </div>
       <div class="field"><label>Notes</label><textarea id="f_notes" placeholder="Route, customer, etc.">${rec?escapeHtml(rec.notes||''):''}</textarea></div>`,
     submit: async (editId)=>{
       const loadNumber = val('f_loadNumber'); if(!loadNumber) return formError('Enter a load number.');
       if(isDuplicateLoadNumber(loadNumber, editId)) return false; // inline warning already shown
-      const fields = {loadNumber, date:val('f_date')||todayStr(), driverId:val('f_driverId'), truckId:val('f_truckId'), revenue:val('f_revenue')||0, driverPay:val('f_driverPay')||0, notes:val('f_notes')};
+      const hasWaitTime = document.getElementById('f_hasWaitTime').checked;
+      const waitTime = hasWaitTime ? (val('f_waitTime')||0) : 0;
+      const fields = {loadNumber, date:val('f_date')||todayStr(), driverId:val('f_driverId'), truckId:val('f_truckId'), revenue:val('f_revenue')||0, driverPay:val('f_driverPay')||0, waitTime, notes:val('f_notes')};
       if(editId){
         const l = DB.loads.find(x=>x.id===editId);
         if(l) Object.assign(l, fields);
@@ -771,6 +832,8 @@ function openModal(kind, editId){
   };
   const remCheck = document.getElementById('f_addReminder');
   if(remCheck){ remCheck.onchange = ()=> document.getElementById('reminderFields').classList.toggle('hidden', !remCheck.checked); }
+  const waitCheck = document.getElementById('f_hasWaitTime');
+  if(waitCheck){ waitCheck.onchange = ()=> document.getElementById('waitTimeFields').classList.toggle('hidden', !waitCheck.checked); }
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
 function formError(msg){
@@ -791,8 +854,6 @@ document.getElementById('tab-service').insertAdjacentHTML('afterbegin', `
   <div style="margin-bottom:6px;"><button class="btn btn-primary" style="width:100%" onclick="openModal('service')">+ Add Service / Repair</button></div>`);
 
 /* ---------------- LOCAL STORAGE BACKEND (standalone / offline) ---------------- */
-/* Drop-in replacement for the Claude-artifact window.storage API, backed by
-   the browser's own localStorage so this app works fully standalone. */
 window.storage = {
   async get(key, shared){
     const raw = localStorage.getItem('fleetledger:'+key);

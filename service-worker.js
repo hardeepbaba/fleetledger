@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fleet-ledger-v1';
+const CACHE_NAME = 'fleet-ledger-v4';
 const APP_SHELL = [
   './index.html',
   './manifest.json',
