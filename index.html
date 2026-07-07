@@ -147,6 +147,28 @@
   .sheet-actions .btn{flex:1;}
   .tag{display:inline-block;background:var(--card-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:10px;color:var(--muted);text-transform:uppercase;margin-right:6px;}
   select#tabTitle{display:none;}
+
+  /* PRINT / PDF REPORT */
+  #printArea{position:absolute;left:-9999px;top:0;width:750px;background:#fff;color:#1B2027;}
+  @media print{
+    body > *:not(#printArea){display:none !important;}
+    #printArea{position:static !important;left:auto !important;top:auto !important;width:100% !important;}
+    @page{margin:14mm;}
+  }
+  .rpt-header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #1B2027;padding-bottom:16px;margin-bottom:18px;}
+  .rpt-logo-badge{width:48px;height:48px;border-radius:8px;background:#1B2027;display:flex;align-items:center;justify-content:center;flex:none;}
+  .rpt-logo-badge svg{width:30px;height:30px;}
+  .rpt-wordmark{font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;letter-spacing:.03em;text-transform:uppercase;color:#1B2027;line-height:1.1;}
+  .rpt-wordmark span{color:#F0862D;}
+  .rpt-tagline{font-family:'Inter',sans-serif;font-size:11px;color:#5B6470;text-transform:uppercase;letter-spacing:.08em;margin-top:2px;}
+  .rpt-title{font-family:'Oswald',sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:.03em;margin:18px 0 4px;color:#1B2027;}
+  .rpt-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5B6470;margin-bottom:14px;}
+  .rpt-table{width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:12px;}
+  .rpt-table th{text-align:left;background:#EDEFF0;color:#1B2027;padding:7px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #1B2027;}
+  .rpt-table td{padding:7px 8px;border-bottom:1px solid #DADFE3;font-family:'IBM Plex Mono',monospace;}
+  .rpt-table tr.rpt-total td{font-weight:700;border-top:2px solid #1B2027;border-bottom:none;background:#F5F6F7;}
+  .rpt-footer{margin-top:24px;font-size:10px;color:#8B94A0;font-family:'Inter',sans-serif;}
+
 </style>
 </head>
 <body>
@@ -230,7 +252,10 @@
 
   <!-- DRIVER PAY -->
   <section id="tab-pay" class="hidden">
-    <div style="margin-bottom:14px;"><button class="btn btn-primary" style="width:100%" onclick="downloadDriverReport(null)">⬇ Download Full Report (CSV)</button></div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <button class="btn btn-primary" style="flex:1" onclick="downloadDriverReport(null)">⬇ CSV</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="printDriverReport(null)">🖨 Print / Save PDF</button>
+    </div>
     <section class="block">
       <div class="block-head"><h2>Driver Pay Totals</h2><span class="count" id="payDriverCount">0</span></div>
       <div id="driverPayList"></div>
@@ -268,6 +293,7 @@
 </nav>
 
 <div id="modalRoot"></div>
+<div id="printArea"></div>
 
 
 <script>
@@ -497,18 +523,19 @@ function renderExpenses(){
 }
 
 function renderDriverPay(){
-  // Build a per-driver summary purely from Load entries (driverId + driverPay + revenue)
-  const summary = {}; // driverId -> { pay, revenue, loadCount }
+  // Build a per-driver summary purely from Load entries (driverId + driverPay + revenue + waitTime)
+  const summary = {}; // driverId -> { pay, revenue, loadCount, waitTime }
   for(const l of DB.loads){
     const key = l.driverId || '__unassigned__';
-    if(!summary[key]) summary[key] = { pay:0, revenue:0, loadCount:0 };
+    if(!summary[key]) summary[key] = { pay:0, revenue:0, loadCount:0, waitTime:0 };
     summary[key].pay += Number(l.driverPay||0);
     summary[key].revenue += Number(l.revenue||0);
+    summary[key].waitTime += Number(l.waitTime||0);
     summary[key].loadCount += 1;
   }
   // Include drivers with zero loads too, so they still show up at $0
   for(const d of DB.drivers){
-    if(!summary[d.id]) summary[d.id] = { pay:0, revenue:0, loadCount:0 };
+    if(!summary[d.id]) summary[d.id] = { pay:0, revenue:0, loadCount:0, waitTime:0 };
   }
 
   const rows = Object.keys(summary)
@@ -521,11 +548,14 @@ function renderDriverPay(){
     <div class="item">
       <div>
         <div class="i-title">${escapeHtml(r.name)}</div>
-        <div class="i-sub">${r.loadCount} load${r.loadCount===1?'':'s'}</div>
+        <div class="i-sub">${r.loadCount} load${r.loadCount===1?'':'s'}${r.waitTime?(' · '+r.waitTime.toFixed(2)+'h total wait'):''}</div>
       </div>
       <div style="text-align:right">
         <div class="i-val acc">${money(r.pay)}<small>Total Pay</small></div>
-        <button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="downloadDriverReport('${r.key}')">⬇ CSV</button>
+        <div style="display:flex;gap:4px;margin-top:4px;">
+          <button class="btn btn-ghost btn-sm" onclick="downloadDriverReport('${r.key}')">⬇ CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="printDriverReport('${r.key}')">🖨 PDF</button>
+        </div>
       </div>
     </div>`).join('') : '<div class="empty">No driver pay yet. Add loads with a driver and pay amount.</div>';
 }
@@ -581,6 +611,77 @@ function downloadDriverReport(driverKey){
   else if(driverKey) label = driverName(driverKey).replace(/[^a-z0-9]+/gi,'-');
   const csv = buildDriverReportCSV(driverKey || null);
   downloadCSV(`driver-pay-report-${label}-${todayStr()}.csv`, csv);
+}
+
+/* ---------------- PRINTABLE / PDF REPORT ---------------- */
+function buildReportHTML(driverKey){
+  let rows = [...DB.loads];
+  let scopeLabel = 'All Drivers';
+  if(driverKey === '__unassigned__'){ rows = rows.filter(l=>!l.driverId); scopeLabel = 'Unassigned Loads'; }
+  else if(driverKey){ rows = rows.filter(l=>l.driverId===driverKey); scopeLabel = driverName(driverKey); }
+  rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+  let totalPay = 0, totalWait = 0;
+  const showDriverCol = !driverKey;
+  const bodyRows = rows.map(l=>{
+    totalPay += Number(l.driverPay||0);
+    totalWait += Number(l.waitTime||0);
+    return `<tr>
+      <td>${escapeHtml(l.loadNumber)}</td>
+      <td>${fmtDate(l.date)}</td>
+      ${showDriverCol ? `<td>${escapeHtml(driverName(l.driverId))}</td>` : ''}
+      <td>${escapeHtml(truckName(l.truckId))}</td>
+      <td>${money(l.driverPay)}</td>
+      <td>${l.waitTime ? Number(l.waitTime).toFixed(2)+'h' : '—'}</td>
+      <td>${escapeHtml(l.notes||'')}</td>
+    </tr>`;
+  }).join('');
+
+  const dateRange = rows.length ? `${fmtDate(rows[0].date)} – ${fmtDate(rows[rows.length-1].date)}` : '—';
+
+  return `
+    <div class="rpt-header">
+      <div class="rpt-logo-badge">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" fill="#1B2027"/>
+          <rect x="10" y="34" width="48" height="34" fill="#F0862D"/>
+          <rect x="58" y="46" width="20" height="22" fill="#F0862D"/>
+          <polygon points="78,46 90,46 90,58 78,58" fill="#F0862D"/>
+          <rect x="80" y="48" width="8" height="8" fill="#1B2027"/>
+          <circle cx="24" cy="68" r="8" fill="#14181C"/><circle cx="24" cy="68" r="3.2" fill="#8B94A0"/>
+          <circle cx="70" cy="68" r="8" fill="#14181C"/><circle cx="70" cy="68" r="3.2" fill="#8B94A0"/>
+          <circle cx="84" cy="68" r="8" fill="#14181C"/><circle cx="84" cy="68" r="3.2" fill="#8B94A0"/>
+          <rect x="0" y="84" width="100" height="3" fill="#4C9BE8"/>
+        </svg>
+      </div>
+      <div>
+        <div class="rpt-wordmark">TORQUE <span>HEAVY HAULAGE</span> INC</div>
+        <div class="rpt-tagline">Fleet Operations · Driver Pay Report</div>
+      </div>
+    </div>
+    <div class="rpt-title">${escapeHtml(scopeLabel)}</div>
+    <div class="rpt-meta">Load dates covered: ${dateRange} &nbsp;·&nbsp; Report generated: ${fmtDate(todayStr())}</div>
+    <table class="rpt-table">
+      <thead><tr>
+        <th>Load #</th><th>Date</th>${showDriverCol?'<th>Driver</th>':''}<th>Truck</th><th>Driver Pay</th><th>Wait Time</th><th>Notes</th>
+      </tr></thead>
+      <tbody>
+        ${bodyRows || `<tr><td colspan="${showDriverCol?7:6}" style="text-align:center;color:#8B94A0;">No loads in this report.</td></tr>`}
+        <tr class="rpt-total">
+          <td colspan="${showDriverCol?4:3}">TOTALS</td>
+          <td>${money(totalPay)}</td>
+          <td>${totalWait.toFixed(2)}h</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="rpt-footer">Torque Heavy Haulage Inc — Generated by Fleet Ledger on ${fmtDate(todayStr())}.</div>
+  `;
+}
+function printDriverReport(driverKey){
+  const area = document.getElementById('printArea');
+  area.innerHTML = buildReportHTML(driverKey || null);
+  setTimeout(()=>{ window.print(); }, 50);
 }
 
 /* ---------------- CRUD ---------------- */
