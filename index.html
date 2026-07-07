@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Fleet Ledger</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B2027">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fleet Ledger">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1B2027;
+    --bg-2:#151A20;
+    --card:#232A33;
+    --card-2:#2A323D;
+    --line:#333D49;
+    --text:#E8EAED;
+    --muted:#8B94A0;
+    --orange:#F0862D;
+    --orange-dim:#4A3420;
+    --blue:#4C9BE8;
+    --blue-dim:#1E3550;
+    --green:#4FAE7B;
+    --green-dim:#1E3B2C;
+    --red:#E15554;
+    --red-dim:#3E2224;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  body{
+    max-width:480px;margin:0 auto;min-height:100vh;position:relative;
+    background:var(--bg);
+    padding-bottom:78px;
+  }
+  h1,h2,h3,.display{font-family:'Oswald',sans-serif;letter-spacing:.02em;text-transform:uppercase;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  /* HEADER */
+  header{
+    padding:20px 18px 16px;background:linear-gradient(180deg,var(--bg-2),var(--bg));
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;
+  }
+  header .brand{display:flex;align-items:baseline;gap:8px;}
+  header .brand h1{font-size:22px;margin:0;color:var(--text);font-weight:600;}
+  header .brand span{color:var(--orange);}
+  header .sub{color:var(--muted);font-size:12px;margin-top:2px;letter-spacing:.08em;text-transform:uppercase;}
+  /* TABS CONTENT */
+  main{padding:16px;}
+  .hidden{display:none !important;}
+  /* SUMMARY CARDS */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+  .stat{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+  }
+  .stat .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+  .stat .value{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;}
+  .stat.wide{grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;}
+  .stat.wide .value{font-size:26px;}
+  .pos{color:var(--green);} .neg{color:var(--red);} .acc{color:var(--orange);} .blu{color:var(--blue);}
+  section.block{margin-bottom:22px;}
+  .block-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .block-head h2{font-size:14px;margin:0;color:var(--text);}
+  .block-head .count{color:var(--muted);font-size:12px;font-family:'IBM Plex Mono',monospace;}
+  /* TICKET (reminder) */
+  .ticket{
+    position:relative;display:flex;justify-content:space-between;align-items:center;gap:10px;
+    background:var(--card);border:1px dashed var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;
+    border-left:4px solid var(--orange);
+  }
+  .ticket.overdue{border-left-color:var(--red);}
+  .ticket .t-main{min-width:0;}
+  .ticket .t-title{font-size:13px;font-weight:600;}
+  .ticket .t-sub{font-size:11px;color:var(--muted);margin-top:2px;font-family:'IBM Plex Mono',monospace;}
+  .ticket .t-action{flex:none;}
+  /* LIST ITEMS */
+  .item{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;
+    display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+  }
+  .item .i-title{font-size:13px;font-weight:600;}
+  .item .i-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5;}
+  .item .i-val{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;text-align:right;flex:none;}
+  .item .i-val small{display:block;color:var(--muted);font-weight:400;font-size:10px;text-transform:uppercase;}
+  .del-btn{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1;}
+  .del-btn:hover{color:var(--red);}
+  .empty{color:var(--muted);font-size:12px;text-align:center;padding:22px 10px;border:1px dashed var(--line);border-radius:12px;}
+  /* BUTTONS */
+  .btn{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13px;border:none;border-radius:10px;
+    padding:9px 14px;cursor:pointer;transition:opacity .15s;
+  }
+  .btn:active{opacity:.75;}
+  .btn-primary{background:var(--orange);color:#1B2027;}
+  .btn-ghost{background:var(--card-2);color:var(--text);border:1px solid var(--line);}
+  .btn-sm{padding:6px 10px;font-size:12px;}
+  .fab{
+    position:fixed;bottom:88px;right:calc(50% - 240px + 18px);
+    width:52px;height:52px;border-radius:50%;background:var(--orange);color:#1B2027;
+    border:none;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.4);
+    z-index:25;cursor:pointer;
+  }
+  @media (max-width:480px){ .fab{right:18px;} }
+  /* BOTTOM NAV */
+  nav.bottom{
+    position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;
+    background:var(--bg-2);border-top:1px solid var(--line);display:flex;z-index:30;
+    padding:8px 4px calc(8px + env(safe-area-inset-bottom));
+  }
+  nav.bottom button{
+    flex:1;background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px;
+    font-size:10px;font-family:'Inter',sans-serif;text-transform:uppercase;letter-spacing:.04em;padding:4px 0;cursor:pointer;
+  }
+  nav.bottom button svg{width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:1.8;}
+  nav.bottom button.active{color:var(--orange);}
+  nav.bottom button.active svg{stroke:var(--orange);}
+  /* MODAL */
+  .overlay{
+    position:fixed;inset:0;background:rgba(10,12,15,.72);z-index:50;display:flex;align-items:flex-end;justify-content:center;
+  }
+  .sheet{
+    width:100%;max-width:480px;background:var(--bg-2);border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+    max-height:88vh;overflow-y:auto;animation:up .18s ease-out;
+  }
+  @keyframes up{from{transform:translateY(24px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .sheet h3{margin:0 0 14px;font-size:16px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;}
+  .field input, .field select, .field textarea{
+    width:100%;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+    color:var(--text);font-size:14px;font-family:'Inter',sans-serif;
+  }
+  .field textarea{resize:vertical;min-height:56px;}
+  .field input[type="date"]{position:relative;color-scheme:dark;}
+  .field input[type="date"]::-webkit-calendar-picker-indicator{
+    filter:invert(0.65) sepia(1) saturate(6) hue-rotate(0deg);
+    cursor:pointer;opacity:1;padding:4px;
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .sheet-actions{display:flex;gap:10px;margin-top:16px;}
+  .sheet-actions .btn{flex:1;}
+  .tag{display:inline-block;background:var(--card-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:10px;color:var(--muted);text-transform:uppercase;margin-right:6px;}
+  select#tabTitle{display:none;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><h1>FLEET<span>LEDGER</span></h1></div>
+  <div class="sub" id="headerSub">Loading your fleet data…</div>
+</header>
+
+<main id="app">
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard">
+    <section class="block">
+      <div class="grid2">
+        <div class="stat"><div class="label">Revenue</div><div class="value blu mono" id="statRevenue">$0</div></div>
+        <div class="stat"><div class="label">Expenses</div><div class="value neg mono" id="statExpenses">$0</div></div>
+        <div class="stat wide"><div><div class="label">Net Profit</div><div class="value mono" id="statProfit">$0</div></div><div class="tag" id="statMargin">0% MARGIN</div></div>
+      </div>
+    </section>
+    <section class="block">
+      <div class="grid2">
+        <div class="stat"><div class="label">Driver Pay</div><div class="value acc mono" id="statDriverPay">$0</div></div>
+        <div class="stat"><div class="label">Fuel Cost</div><div class="value acc mono" id="statFuel">$0</div></div>
+        <div class="stat"><div class="label">Repairs / Service</div><div class="value acc mono" id="statService">$0</div></div>
+        <div class="stat"><div class="label">Other Expenses</div><div class="value acc mono" id="statOther">$0</div></div>
+      </div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h2>Upcoming & Overdue Reminders</h2><span class="count" id="remCount">0</span></div>
+      <div id="dashReminders"></div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h2>Recent Loads</h2><span class="count" id="loadCount">0</span></div>
+      <div id="dashLoads"></div>
+    </section>
+  </section>
+
+  <!-- FLEET -->
+  <section id="tab-fleet" class="hidden">
+    <section class="block">
+      <div class="block-head"><h2>Trucks</h2><button class="btn btn-primary btn-sm" onclick="openModal('truck')">+ Truck</button></div>
+      <div id="truckList"></div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h2>Drivers</h2><button class="btn btn-primary btn-sm" onclick="openModal('driver')">+ Driver</button></div>
+      <div id="driverList"></div>
+    </section>
+  </section>
+
+  <!-- LOADS -->
+  <section id="tab-loads" class="hidden">
+    <section class="block">
+      <div class="block-head"><h2>Loads</h2><span class="count" id="loadsTotal">0</span></div>
+      <div id="loadsList"></div>
+    </section>
+  </section>
+
+  <!-- SERVICE -->
+  <section id="tab-service" class="hidden">
+    <section class="block">
+      <div class="block-head"><h2>Reminders</h2><button class="btn btn-ghost btn-sm" onclick="openModal('reminder')">+ Reminder</button></div>
+      <div id="reminderList"></div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h2>Service & Repair Records</h2><span class="count" id="serviceTotal">0</span></div>
+      <div id="serviceList"></div>
+    </section>
+  </section>
+
+  <!-- EXPENSES -->
+  <section id="tab-expenses" class="hidden">
+    <section class="block">
+      <div class="block-head"><h2>Fuel</h2><span class="count" id="fuelTotal">0</span></div>
+      <div id="fuelList"></div>
+    </section>
+    <section class="block">
+      <div class="block-head"><h2>Other Expenses</h2><span class="count" id="otherTotal">0</span></div>
+      <div id="otherList"></div>
+    </section>
+  </section>
+</main>
+
+<button class="fab" id="fabBtn" onclick="fabAction()">+</button>
+
+<nav class="bottom">
+  <button class="active" data-tab="dashboard" onclick="switchTab('dashboard')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+    Dashboard
+  </button>
+  <button data-tab="fleet" onclick="switchTab('fleet')">
+    <svg viewBox="0 0 24 24"><rect x="2" y="8" width="12" height="8" rx="1.5"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>
+    Fleet
+  </button>
+  <button data-tab="loads" onclick="switchTab('loads')">
+    <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg>
+    Loads
+  </button>
+  <button data-tab="service" onclick="switchTab('service')">
+    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4l-1.1 1.1-3-3zM4 20l4.5-1.3 8.9-8.9-3-3L4.5 15.7z"/></svg>
+    Service
+  </button>
+  <button data-tab="expenses" onclick="switchTab('expenses')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5c0-1.4 1.1-2 2.5-2s2.5.7 2.5 2c0 2.5-5 1.5-5 4 0 1.3 1.1 2 2.5 2s2.5-.6 2.5-2"/></svg>
+    Expenses
+  </button>
+</nav>
+
+<div id="modalRoot"></div>
+
+<script>
+/* ---------------- STATE ---------------- */
+let DB = { trucks:[], drivers:[], loads:[], serviceRecords:[], reminders:[], fuelRecords:[], otherExpenses:[] };
+const KEYS = Object.keys(DB);
+let currentTab = 'dashboard';
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function money(n){ n = Number(n)||0; return (n<0?'-$':'$') + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(d){ if(!d) return '—'; const dt=new Date(d+'T00:00:00'); return dt.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
+function daysUntil(d){ const today=new Date(); today.setHours(0,0,0,0); const dt=new Date(d+'T00:00:00'); return Math.round((dt-today)/86400000); }
+
+async function loadDB(){
+  for(const k of KEYS){
+    try{
+      const r = await window.storage.get(k, false);
+      DB[k] = r ? JSON.parse(r.value) : [];
+    }catch(e){ DB[k] = []; }
+  }
+  document.getElementById('headerSub').textContent = DB.trucks.length + ' trucks · ' + DB.drivers.length + ' drivers on file';
+  renderAll();
+}
+async function save(key){
+  try{
+    const result = await window.storage.set(key, JSON.stringify(DB[key]), false);
+    if(!result){ toast('Could not save — check your connection and try again.'); }
+  }catch(e){
+    console.error('save failed', key, e);
+    toast('Could not save — check your connection and try again.');
+  }
+}
+function toast(msg){
+  const existing = document.getElementById('appToast');
+  if(existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'appToast';
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;bottom:96px;left:50%;transform:translateX(-50%);max-width:90%;background:var(--red-dim);color:#FFD6D5;border:1px solid var(--red);border-radius:10px;padding:10px 16px;font-size:12px;z-index:60;text-align:center;';
+  document.body.appendChild(el);
+  setTimeout(()=>{ if(el.parentNode) el.remove(); }, 4000);
+}
+
+/* ---------------- NAV ---------------- */
+function switchTab(tab){
+  currentTab = tab;
+  document.querySelectorAll('main > section').forEach(s=>s.classList.add('hidden'));
+  document.getElementById('tab-'+tab).classList.remove('hidden');
+  document.querySelectorAll('nav.bottom button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  renderAll();
+}
+function fabAction(){
+  const map = { dashboard:'load', fleet:'truck', loads:'load', service:'service', expenses:'fuel' };
+  openModal(map[currentTab] || 'load');
+}
+
+/* ---------------- RENDER ---------------- */
+function truckName(id){ const t = DB.trucks.find(x=>x.id===id); return t ? ('#'+t.number+(t.make?' · '+t.make+' '+t.model:'')) : 'Unassigned truck'; }
+function driverName(id){ const d = DB.drivers.find(x=>x.id===id); return d ? d.name : 'Unassigned driver'; }
+
+function renderAll(){
+  const steps = [renderDashboard, renderFleet, renderLoads, renderService, renderExpenses];
+  for(const step of steps){
+    try{ step(); }
+    catch(e){ console.error('Render error in', step.name, e); }
+  }
+}
+
+function totals(){
+  const revenue = DB.loads.reduce((s,l)=>s+Number(l.revenue||0),0);
+  const driverPay = DB.loads.reduce((s,l)=>s+Number(l.driverPay||0),0);
+  const fuel = DB.fuelRecords.reduce((s,f)=>s+Number(f.cost||0),0);
+  const service = DB.serviceRecords.reduce((s,r)=>s+Number(r.cost||0),0);
+  const other = DB.otherExpenses.reduce((s,o)=>s+Number(o.amount||0),0);
+  const expenses = driverPay+fuel+service+other;
+  return {revenue, driverPay, fuel, service, other, expenses, profit: revenue-expenses};
+}
+
+function renderDashboard(){
+  const t = totals();
+  document.getElementById('statRevenue').textContent = money(t.revenue);
+  document.getElementById('statExpenses').textContent = money(t.expenses);
+  const profitEl = document.getElementById('statProfit');
+  profitEl.textContent = money(t.profit);
+  profitEl.className = 'value mono ' + (t.profit>=0?'pos':'neg');
+  const margin = t.revenue>0 ? Math.round((t.profit/t.revenue)*100) : 0;
+  document.getElementById('statMargin').textContent = margin + '% MARGIN';
+  document.getElementById('statDriverPay').textContent = money(t.driverPay);
+  document.getElementById('statFuel').textContent = money(t.fuel);
+  document.getElementById('statService').textContent = money(t.service);
+  document.getElementById('statOther').textContent = money(t.other);
+
+  const upcoming = DB.reminders.filter(r=>r.status!=='done').sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,5);
+  document.getElementById('remCount').textContent = DB.reminders.filter(r=>r.status!=='done').length;
+  const remWrap = document.getElementById('dashReminders');
+  remWrap.innerHTML = upcoming.length ? upcoming.map(r=>reminderTicket(r)).join('') : '<div class="empty">No reminders yet. Tap Service to add one.</div>';
+
+  const recentLoads = [...DB.loads].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,4);
+  document.getElementById('loadCount').textContent = DB.loads.length;
+  document.getElementById('dashLoads').innerHTML = recentLoads.length ? recentLoads.map(l=>loadItem(l)).join('') : '<div class="empty">No loads logged yet.</div>';
+}
+
+function reminderTicket(r){
+  const dd = daysUntil(r.dueDate);
+  const overdue = dd < 0;
+  const label = overdue ? Math.abs(dd)+' days overdue' : (dd===0 ? 'Due today' : 'Due in '+dd+' days');
+  return `<div class="ticket ${overdue?'overdue':''}">
+    <div class="t-main">
+      <div class="t-title">${escapeHtml(r.description)}</div>
+      <div class="t-sub">${escapeHtml(truckName(r.truckId))} · ${fmtDate(r.dueDate)} · ${label}</div>
+    </div>
+    <div class="t-action">
+      <button class="btn btn-ghost btn-sm" onclick="completeReminder('${r.id}')">Done</button>
+    </div>
+  </div>`;
+}
+
+function loadItem(l){
+  return `<div class="item">
+    <div>
+      <div class="i-title mono">Load #${escapeHtml(l.loadNumber)}</div>
+      <div class="i-sub">${escapeHtml(driverName(l.driverId))} · ${escapeHtml(truckName(l.truckId))} · ${fmtDate(l.date)}</div>
+    </div>
+    <div style="text-align:right">
+      <div class="i-val">${money(l.revenue)}<small>Pay ${money(l.driverPay)}</small></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:4px;" onclick="openModal('load','${l.id}')">Edit</button>
+    </div>
+  </div>`;
+}
+
+function renderFleet(){
+  document.getElementById('truckList').innerHTML = DB.trucks.length ? DB.trucks.map(t=>`
+    <div class="item">
+      <div>
+        <div class="i-title">Truck #${escapeHtml(t.number)}</div>
+        <div class="i-sub">${escapeHtml(t.make||'')} ${escapeHtml(t.model||'')} ${t.year?('· '+t.year):''}${t.vin?(' · VIN '+escapeHtml(t.vin)):''}${t.odometer?(' · '+Number(t.odometer).toLocaleString()+' mi'):''}</div>
+      </div>
+      <button class="del-btn" onclick="removeItem('trucks','${t.id}')">✕</button>
+    </div>`).join('') : '<div class="empty">No trucks added yet.</div>';
+
+  document.getElementById('driverList').innerHTML = DB.drivers.length ? DB.drivers.map(d=>`
+    <div class="item">
+      <div>
+        <div class="i-title">${escapeHtml(d.name)}</div>
+        <div class="i-sub">${d.phone?escapeHtml(d.phone):'No phone on file'}</div>
+      </div>
+      <button class="del-btn" onclick="removeItem('drivers','${d.id}')">✕</button>
+    </div>`).join('') : '<div class="empty">No drivers added yet.</div>';
+}
+
+function renderLoads(){
+  const sorted = [...DB.loads].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById('loadsTotal').textContent = DB.loads.length;
+  document.getElementById('loadsList').innerHTML = sorted.length ? sorted.map(l=>`
+    <div class="item">
+      <div>
+        <div class="i-title mono">Load #${escapeHtml(l.loadNumber)}</div>
+        <div class="i-sub">${escapeHtml(driverName(l.driverId))} · ${escapeHtml(truckName(l.truckId))} · ${fmtDate(l.date)}${l.notes?(' · '+escapeHtml(l.notes)):''}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="i-val">${money(l.revenue)}<small>Revenue</small></div>
+        <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px;">
+          <button class="btn btn-ghost btn-sm" onclick="openModal('load','${l.id}')">Edit</button>
+          <button class="del-btn" onclick="removeItem('loads','${l.id}')">✕</button>
+        </div>
+      </div>
+    </div>`).join('') : '<div class="empty">No loads yet. Tap the + button to add one.</div>';
+}
+
+function renderService(){
+  const openRem = DB.reminders.filter(r=>r.status!=='done').sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate));
+  document.getElementById('reminderList').innerHTML = openRem.length ? openRem.map(r=>`
+    <div class="ticket ${daysUntil(r.dueDate)<0?'overdue':''}">
+      <div class="t-main">
+        <div class="t-title">${escapeHtml(r.description)}</div>
+        <div class="t-sub">${escapeHtml(truckName(r.truckId))} · Due ${fmtDate(r.dueDate)}</div>
+      </div>
+      <div class="t-action" style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="completeReminder('${r.id}')">Done</button>
+        <button class="del-btn" onclick="removeItem('reminders','${r.id}')">✕</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No open reminders.</div>';
+
+  const svc = [...DB.serviceRecords].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById('serviceTotal').textContent = DB.serviceRecords.length;
+  document.getElementById('serviceList').innerHTML = svc.length ? svc.map(r=>`
+    <div class="item">
+      <div>
+        <div class="i-title">${escapeHtml(r.type)}</div>
+        <div class="i-sub">${escapeHtml(truckName(r.truckId))} · ${fmtDate(r.date)}${r.odometer?(' · '+Number(r.odometer).toLocaleString()+' mi'):''}${r.notes?(' · '+escapeHtml(r.notes)):''}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="i-val neg">${money(r.cost)}</div>
+        <button class="del-btn" onclick="removeItem('serviceRecords','${r.id}')">✕</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No service records yet.</div>';
+}
+
+function renderExpenses(){
+  const fuel = [...DB.fuelRecords].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById('fuelTotal').textContent = DB.fuelRecords.length;
+  document.getElementById('fuelList').innerHTML = fuel.length ? fuel.map(f=>`
+    <div class="item">
+      <div>
+        <div class="i-title">${escapeHtml(truckName(f.truckId))}</div>
+        <div class="i-sub">${escapeHtml(driverName(f.driverId))} · ${fmtDate(f.date)}${f.litres?(' · '+f.litres+' L'):(f.gallons?(' · '+f.gallons+' gal'):'')}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="i-val neg">${money(f.cost)}</div>
+        <button class="del-btn" onclick="removeItem('fuelRecords','${f.id}')">✕</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No fuel entries yet.</div>';
+
+  const other = [...DB.otherExpenses].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById('otherTotal').textContent = DB.otherExpenses.length;
+  document.getElementById('otherList').innerHTML = other.length ? other.map(o=>`
+    <div class="item">
+      <div>
+        <div class="i-title">${escapeHtml(o.category)}</div>
+        <div class="i-sub">${fmtDate(o.date)}${o.description?(' · '+escapeHtml(o.description)):''}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="i-val neg">${money(o.amount)}</div>
+        <button class="del-btn" onclick="removeItem('otherExpenses','${o.id}')">✕</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No other expenses logged.</div>';
+}
+
+function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------------- CRUD ---------------- */
+async function removeItem(key, id){
+  DB[key] = DB[key].filter(x=>x.id!==id);
+  await save(key);
+  renderAll();
+}
+async function completeReminder(id){
+  const r = DB.reminders.find(x=>x.id===id);
+  if(r){ r.status='done'; await save('reminders'); renderAll(); }
+}
+
+/* ---------------- MODALS ---------------- */
+function truckOptions(sel){
+  if(!DB.trucks.length) return '<option value="">No trucks yet</option>';
+  return DB.trucks.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>#${escapeHtml(t.number)}</option>`).join('');
+}
+function driverOptions(sel){
+  const base = DB.drivers.map(d=>`<option value="${d.id}" ${d.id===sel?'selected':''}>${escapeHtml(d.name)}</option>`).join('');
+  const placeholder = DB.drivers.length ? '' : '<option value="">No drivers yet</option>';
+  return placeholder + base + `<option value="__new__">+ Add new driver…</option>`;
+}
+function handleDriverSelect(selectEl){
+  if(selectEl.value === '__new__'){
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--card-2);';
+    wrap.innerHTML = `
+      <div class="field" style="margin-bottom:8px;"><label>New Driver Name</label><input id="inlineDriverName" placeholder="Full name"></div>
+      <div class="field" style="margin-bottom:8px;"><label>Phone (optional)</label><input id="inlineDriverPhone" placeholder="Optional"></div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn btn-ghost btn-sm" id="inlineDriverCancel" style="flex:1;">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="inlineDriverSave" style="flex:1;">Add Driver</button>
+      </div>`;
+    selectEl.insertAdjacentElement('afterend', wrap);
+    selectEl.disabled = true;
+    document.getElementById('inlineDriverCancel').onclick = ()=>{
+      wrap.remove();
+      selectEl.disabled = false;
+      selectEl.value = DB.drivers.length ? DB.drivers[0].id : '';
+    };
+    document.getElementById('inlineDriverSave').onclick = async ()=>{
+      const name = document.getElementById('inlineDriverName').value.trim();
+      if(!name) return;
+      const phone = document.getElementById('inlineDriverPhone').value.trim();
+      const d = {id:uid(), name, phone};
+      DB.drivers.push(d);
+      await save('drivers');
+      selectEl.disabled = false;
+      selectEl.innerHTML = driverOptions(d.id);
+      wrap.remove();
+    };
+  }
+}
+const todayStr = () => new Date().toISOString().slice(0,10);
+
+const MODAL_FORMS = {
+  truck: {
+    title:'Add Truck',
+    body:()=>`
+      <div class="row2">
+        <div class="field"><label>Truck / Unit #</label><input id="f_number" placeholder="e.g. 104"></div>
+        <div class="field"><label>Year</label><input id="f_year" type="number" placeholder="2021"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Make</label><input id="f_make" placeholder="Freightliner"></div>
+        <div class="field"><label>Model</label><input id="f_model" placeholder="Cascadia"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>VIN</label><input id="f_vin" placeholder="Optional"></div>
+        <div class="field"><label>Current Odometer</label><input id="f_odometer" type="number" placeholder="mi"></div>
+      </div>`,
+    submit: async ()=>{
+      const number = val('f_number'); if(!number) return formError('Enter a truck number.');
+      DB.trucks.push({id:uid(), number, year:val('f_year'), make:val('f_make'), model:val('f_model'), vin:val('f_vin'), odometer:val('f_odometer')});
+      await save('trucks');
+    }
+  },
+  driver:{
+    title:'Add Driver',
+    body:()=>`
+      <div class="field"><label>Name</label><input id="f_name" placeholder="Full name"></div>
+      <div class="field"><label>Phone</label><input id="f_phone" placeholder="Optional"></div>`,
+    submit: async ()=>{
+      const name = val('f_name'); if(!name) return formError('Enter a driver name.');
+      DB.drivers.push({id:uid(), name, phone:val('f_phone')});
+      await save('drivers');
+    }
+  },
+  load:{
+    title:'Add Load',
+    body:(rec, editId)=>`
+      <div class="row2">
+        <div class="field">
+          <label>Load Number</label>
+          <input id="f_loadNumber" value="${rec?escapeHtml(rec.loadNumber):''}" placeholder="e.g. L-5521" oninput="checkLoadNumber('${editId||''}')">
+          <div id="loadNumWarning" style="display:none;color:var(--red);font-size:11px;margin-top:5px;"></div>
+        </div>
+        <div class="field"><label>Date</label><input id="f_date" type="date" value="${rec?rec.date:todayStr()}"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Driver</label><select id="f_driverId" onchange="handleDriverSelect(this)">${driverOptions(rec?rec.driverId:null)}</select></div>
+        <div class="field"><label>Truck</label><select id="f_truckId">${truckOptions(rec?rec.truckId:null)}</select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Revenue Earned ($)</label><input id="f_revenue" type="number" step="0.01" value="${rec?rec.revenue:''}" placeholder="0.00"></div>
+        <div class="field"><label>Driver Pay ($)</label><input id="f_driverPay" type="number" step="0.01" value="${rec?rec.driverPay:''}" placeholder="0.00"></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea id="f_notes" placeholder="Route, customer, etc.">${rec?escapeHtml(rec.notes||''):''}</textarea></div>`,
+    submit: async (editId)=>{
+      const loadNumber = val('f_loadNumber'); if(!loadNumber) return formError('Enter a load number.');
+      if(isDuplicateLoadNumber(loadNumber, editId)) return false; // inline warning already shown
+      const fields = {loadNumber, date:val('f_date')||todayStr(), driverId:val('f_driverId'), truckId:val('f_truckId'), revenue:val('f_revenue')||0, driverPay:val('f_driverPay')||0, notes:val('f_notes')};
+      if(editId){
+        const l = DB.loads.find(x=>x.id===editId);
+        if(l) Object.assign(l, fields);
+      } else {
+        DB.loads.push({id:uid(), ...fields});
+      }
+      await save('loads');
+    }
+  },
+  service:{
+    title:'Add Service / Repair Record',
+    body:()=>`
+      <div class="row2">
+        <div class="field"><label>Truck</label><select id="f_truckId">${truckOptions()}</select></div>
+        <div class="field"><label>Date</label><input id="f_date" type="date" value="${todayStr()}"></div>
+      </div>
+      <div class="field"><label>Service / Repair Type</label><input id="f_type" placeholder="e.g. Oil change, brake repair"></div>
+      <div class="row2">
+        <div class="field"><label>Cost ($)</label><input id="f_cost" type="number" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label>Odometer</label><input id="f_odometer" type="number" placeholder="mi"></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea id="f_notes" placeholder="Shop, parts, details"></textarea></div>
+      <div class="field"><label><input type="checkbox" id="f_addReminder" style="width:auto;margin-right:6px;">Set a reminder for the next service</label></div>
+      <div id="reminderFields" class="hidden">
+        <div class="row2">
+          <div class="field"><label>Reminder due date</label><input id="f_dueDate" type="date"></div>
+          <div class="field"><label>Reminder description</label><input id="f_remDesc" placeholder="e.g. Next oil change"></div>
+        </div>
+      </div>`,
+    submit: async ()=>{
+      const type = val('f_type'); if(!type) return formError('Enter a service/repair type.');
+      DB.serviceRecords.push({id:uid(), truckId:val('f_truckId'), date:val('f_date')||todayStr(), type, cost:val('f_cost')||0, odometer:val('f_odometer'), notes:val('f_notes')});
+      await save('serviceRecords');
+      if(document.getElementById('f_addReminder').checked && val('f_dueDate')){
+        DB.reminders.push({id:uid(), truckId:val('f_truckId'), description: val('f_remDesc')||('Follow-up: '+type), dueDate: val('f_dueDate'), status:'open'});
+        await save('reminders');
+      }
+    }
+  },
+  reminder:{
+    title:'Add Reminder',
+    body:()=>`
+      <div class="field"><label>Truck</label><select id="f_truckId">${truckOptions()}</select></div>
+      <div class="field"><label>Description</label><input id="f_description" placeholder="e.g. DOT inspection due"></div>
+      <div class="field"><label>Due Date</label><input id="f_dueDate" type="date" value="${todayStr()}"></div>`,
+    submit: async ()=>{
+      const description = val('f_description'); if(!description) return formError('Enter a description.');
+      DB.reminders.push({id:uid(), truckId:val('f_truckId'), description, dueDate:val('f_dueDate')||todayStr(), status:'open'});
+      await save('reminders');
+    }
+  },
+  fuel:{
+    title:'Add Fuel Cost',
+    body:()=>`
+      <div class="row2">
+        <div class="field"><label>Truck</label><select id="f_truckId">${truckOptions()}</select></div>
+        <div class="field"><label>Driver</label><select id="f_driverId" onchange="handleDriverSelect(this)">${driverOptions()}</select></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Date</label><input id="f_date" type="date" value="${todayStr()}"></div>
+        <div class="field"><label>Litres</label><input id="f_litres" type="number" step="0.01" placeholder="Optional"></div>
+      </div>
+      <div class="field"><label>Cost ($)</label><input id="f_cost" type="number" step="0.01" placeholder="Optional"></div>`,
+    submit: async ()=>{
+      const cost = val('f_cost') || 0;
+      DB.fuelRecords.push({id:uid(), truckId:val('f_truckId'), driverId:val('f_driverId'), date:val('f_date')||todayStr(), litres:val('f_litres'), cost});
+      await save('fuelRecords');
+    }
+  },
+  otherExpense:{
+    title:'Add Other Expense',
+    body:()=>`
+      <div class="row2">
+        <div class="field"><label>Category</label><input id="f_category" placeholder="e.g. Fleet insurance"></div>
+        <div class="field"><label>Date</label><input id="f_date" type="date" value="${todayStr()}"></div>
+      </div>
+      <div class="field"><label>Amount ($)</label><input id="f_amount" type="number" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>Description</label><textarea id="f_description" placeholder="e.g. Monthly installment 3 of 12"></textarea></div>`,
+    submit: async ()=>{
+      const category = val('f_category'); const amount = val('f_amount');
+      if(!category || !amount) return formError('Enter a category and amount.');
+      DB.otherExpenses.push({id:uid(), category, amount, date:val('f_date')||todayStr(), description:val('f_description')});
+      await save('otherExpenses');
+    }
+  }
+};
+
+function val(id){ const el = document.getElementById(id); if(!el) return ''; if(el.type==='checkbox') return el.checked; return el.value.trim(); }
+
+function isDuplicateLoadNumber(loadNumber, editId){
+  return DB.loads.some(x=>x.loadNumber.trim().toLowerCase()===loadNumber.trim().toLowerCase() && x.id!==editId);
+}
+function checkLoadNumber(editId){
+  const input = document.getElementById('f_loadNumber');
+  const warning = document.getElementById('loadNumWarning');
+  const submitBtn = document.getElementById('modalSubmitBtn');
+  const loadNumber = input.value.trim();
+  const dupe = loadNumber && isDuplicateLoadNumber(loadNumber, editId);
+  warning.style.display = dupe ? 'block' : 'none';
+  warning.textContent = dupe ? 'Load #'+loadNumber+' already exists. Choose a different load number.' : '';
+  input.style.borderColor = dupe ? 'var(--red)' : 'var(--line)';
+  if(submitBtn) submitBtn.disabled = !!dupe;
+  if(submitBtn) submitBtn.style.opacity = dupe ? '0.5' : '1';
+}
+
+const RECORD_KEY = { load:'loads', truck:'trucks', driver:'drivers', service:'serviceRecords', reminder:'reminders', fuel:'fuelRecords', otherExpense:'otherExpenses' };
+
+function openModal(kind, editId){
+  const form = MODAL_FORMS[kind];
+  if(!form) return;
+  const rec = editId ? DB[RECORD_KEY[kind]].find(x=>x.id===editId) : null;
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="overlay" onclick="if(event.target===this) closeModal()">
+      <div class="sheet">
+        <h3>${editId ? 'Edit '+form.title.replace(/^Add /,'') : form.title}</h3>
+        <div id="formError" style="display:none;background:var(--red-dim);color:#FFD6D5;border:1px solid var(--red);border-radius:9px;padding:9px 12px;font-size:12px;margin-bottom:12px;"></div>
+        ${form.body(rec, editId)}
+        <div class="sheet-actions">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="modalSubmitBtn">Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalSubmitBtn').onclick = async ()=>{
+    const ok = await form.submit(editId);
+    if(ok === false) return;
+    closeModal();
+    renderAll();
+  };
+  const remCheck = document.getElementById('f_addReminder');
+  if(remCheck){ remCheck.onchange = ()=> document.getElementById('reminderFields').classList.toggle('hidden', !remCheck.checked); }
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function formError(msg){
+  const el = document.getElementById('formError');
+  if(el){ el.textContent = msg; el.style.display = 'block'; }
+  return false;
+}
+
+/* quick-add buttons for expenses tab (fuel vs other) */
+document.getElementById('tab-expenses').insertAdjacentHTML('afterbegin', `
+  <div style="display:flex;gap:10px;margin-bottom:6px;">
+    <button class="btn btn-primary" style="flex:1" onclick="openModal('fuel')">+ Fuel</button>
+    <button class="btn btn-ghost" style="flex:1" onclick="openModal('otherExpense')">+ Other Expense</button>
+  </div>`);
+document.getElementById('tab-loads').insertAdjacentHTML('afterbegin', `
+  <div style="margin-bottom:6px;"><button class="btn btn-primary" style="width:100%" onclick="openModal('load')">+ Add Load</button></div>`);
+document.getElementById('tab-service').insertAdjacentHTML('afterbegin', `
+  <div style="margin-bottom:6px;"><button class="btn btn-primary" style="width:100%" onclick="openModal('service')">+ Add Service / Repair</button></div>`);
+
+/* ---------------- LOCAL STORAGE BACKEND (standalone / offline) ---------------- */
+/* Drop-in replacement for the Claude-artifact window.storage API, backed by
+   the browser's own localStorage so this app works fully standalone. */
+window.storage = {
+  async get(key, shared){
+    const raw = localStorage.getItem('fleetledger:'+key);
+    if(raw === null) throw new Error('key not found: '+key);
+    return { key, value: raw, shared: !!shared };
+  },
+  async set(key, value, shared){
+    localStorage.setItem('fleetledger:'+key, value);
+    return { key, value, shared: !!shared };
+  },
+  async delete(key, shared){
+    localStorage.removeItem('fleetledger:'+key);
+    return { key, deleted: true, shared: !!shared };
+  },
+  async list(prefix, shared){
+    const keys = Object.keys(localStorage)
+      .filter(k => k.startsWith('fleetledger:'))
+      .map(k => k.slice('fleetledger:'.length))
+      .filter(k => !prefix || k.startsWith(prefix));
+    return { keys, prefix, shared: !!shared };
+  }
+};
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(e=>console.error('SW registration failed', e));
+  });
+}
+
+loadDB();
+</script>
+</body>
+</html>
