@@ -221,6 +221,26 @@
   <!-- LOADS -->
   <section id="tab-loads" class="hidden">
     <section class="block">
+      <div class="field" style="margin-bottom:10px;">
+        <label>Period</label>
+        <select id="loadsPeriod" onchange="handleLoadsPeriodChange()">
+          <option value="all">All Time</option>
+          <option value="thisMonth">This Month</option>
+          <option value="lastMonth">Last Month</option>
+          <option value="thisYear">This Year</option>
+          <option value="custom">Custom Range…</option>
+        </select>
+      </div>
+      <div class="row2" id="loadsCustomRange" style="display:none;margin-bottom:10px;">
+        <div class="field"><label>From</label><input id="loadsFrom" type="date" onchange="handleLoadsCustomChange()"></div>
+        <div class="field"><label>To</label><input id="loadsTo" type="date" onchange="handleLoadsCustomChange()"></div>
+      </div>
+      <div id="loadsPeriodSummary" class="stat wide" style="margin-bottom:14px;display:none;">
+        <div><div class="label">Period Revenue</div><div class="value blu mono" id="loadsPeriodRevenue">$0</div></div>
+        <div class="tag" id="loadsPeriodCount">0 loads</div>
+      </div>
+    </section>
+    <section class="block">
       <div class="block-head"><h2>Loads</h2><span class="count" id="loadsTotal">0</span></div>
       <div id="loadsList"></div>
     </section>
@@ -301,6 +321,8 @@
 let DB = { trucks:[], drivers:[], loads:[], serviceRecords:[], reminders:[], fuelRecords:[], otherExpenses:[] };
 const KEYS = Object.keys(DB);
 let currentTab = 'dashboard';
+let loadsPeriod = 'all';
+let loadsFrom = null, loadsTo = null;
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function money(n){ n = Number(n)||0; return (n<0?'-$':'$') + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -444,9 +466,57 @@ function renderFleet(){
     </div>`).join('') : '<div class="empty">No drivers added yet.</div>';
 }
 
+/* ---------------- LOADS PERIOD FILTER ---------------- */
+function isoDate(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function getLoadsPeriodRange(){
+  const now = new Date();
+  if(loadsPeriod === 'custom') return { from: loadsFrom || null, to: loadsTo || null };
+  if(loadsPeriod === 'thisMonth'){
+    return { from: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), to: isoDate(new Date(now.getFullYear(), now.getMonth()+1, 0)) };
+  }
+  if(loadsPeriod === 'lastMonth'){
+    return { from: isoDate(new Date(now.getFullYear(), now.getMonth()-1, 1)), to: isoDate(new Date(now.getFullYear(), now.getMonth(), 0)) };
+  }
+  if(loadsPeriod === 'thisYear'){
+    return { from: isoDate(new Date(now.getFullYear(), 0, 1)), to: isoDate(new Date(now.getFullYear(), 11, 31)) };
+  }
+  return { from: null, to: null }; // all time
+}
+function handleLoadsPeriodChange(){
+  loadsPeriod = document.getElementById('loadsPeriod').value;
+  document.getElementById('loadsCustomRange').style.display = loadsPeriod === 'custom' ? 'grid' : 'none';
+  if(loadsPeriod !== 'custom') renderLoads();
+}
+function handleLoadsCustomChange(){
+  loadsFrom = document.getElementById('loadsFrom').value || null;
+  loadsTo = document.getElementById('loadsTo').value || null;
+  renderLoads();
+}
+
 function renderLoads(){
-  const sorted = [...DB.loads].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  document.getElementById('loadsTotal').textContent = DB.loads.length;
+  const { from, to } = getLoadsPeriodRange();
+  let filtered = [...DB.loads];
+  if(from) filtered = filtered.filter(l => l.date >= from);
+  if(to) filtered = filtered.filter(l => l.date <= to);
+  // Auto-sort ascending (oldest first) whenever loads are rendered/saved
+  const sorted = filtered.sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  const isFiltered = loadsPeriod !== 'all';
+  document.getElementById('loadsTotal').textContent = isFiltered ? `${sorted.length} of ${DB.loads.length}` : DB.loads.length;
+
+  const summaryEl = document.getElementById('loadsPeriodSummary');
+  if(isFiltered){
+    const periodRevenue = sorted.reduce((s,l)=>s+Number(l.revenue||0),0);
+    document.getElementById('loadsPeriodRevenue').textContent = money(periodRevenue);
+    document.getElementById('loadsPeriodCount').textContent = sorted.length + (sorted.length===1?' load':' loads');
+    summaryEl.style.display = 'flex';
+  } else {
+    summaryEl.style.display = 'none';
+  }
+
   document.getElementById('loadsList').innerHTML = sorted.length ? sorted.map(l=>`
     <div class="item">
       <div>
@@ -460,7 +530,7 @@ function renderLoads(){
           <button class="del-btn" onclick="removeItem('loads','${l.id}')">✕</button>
         </div>
       </div>
-    </div>`).join('') : '<div class="empty">No loads yet. Tap the + button to add one.</div>';
+    </div>`).join('') : `<div class="empty">${isFiltered ? 'No loads in this period.' : 'No loads yet. Tap the + button to add one.'}</div>`;
 }
 
 function renderService(){
